@@ -489,7 +489,6 @@ impl Gazenot {
         let server = &self.api_server;
         let source_host = &self.source_host;
         let owner = &self.owner;
-        let package = package;
         let url = Url::from_str(&format!(
             "https://{server}/{source_host}/{owner}/{package}/artifacts"
         ))?;
