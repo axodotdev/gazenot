@@ -105,14 +105,29 @@ struct ListReleasesResponse {
 }
 
 impl Gazenot {
-    /// Gaze Not Into The Abyss, Lest You Become A Release Engineer
+    /// Create a new authenticated client for The Abyss
+    ///
+    /// *Gaze Not Into The Abyss, Lest You Become A Release Engineer*
+    ///
+    /// Authentication requires an Axo Releases Token, whose value
+    /// is currently sourced from an AXO_RELEASES_TOKEN environment variable.
+    /// It's an error for that variable to not be properly set.
     ///
     /// This is the vastly superior alias for [`Gazenot::new`].
+    ///
+    /// See also, [`Gazenot::new_unauthed`].
+    #[doc(alias = "new")]
     pub fn into_the_abyss(
         source_host: impl Into<SourceHost>,
         owner: impl Into<Owner>,
     ) -> Result<Self> {
-        Self::new(source_host, owner)
+        let source_host = source_host.into();
+        let owner = owner.into();
+
+        let auth_headers = auth_headers(&source_host, &owner)
+            .map_err(|e| GazenotError::new("initializing Abyss authentication", e))?;
+
+        Self::new_with_auth_headers(source_host, owner, auth_headers)
     }
 
     /// Create a new authenticated client for The Abyss
@@ -124,14 +139,12 @@ impl Gazenot {
     /// This is the vastly inferior alias for [`Gazenot::into_the_abyss`].
     ///
     /// See also, [`Gazenot::new_unauthed`].
+    #[deprecated(
+        since = "0.1.0",
+        note = "use the vastly superior alias `Gazenot::into_the_abyss`"
+    )]
     pub fn new(source_host: impl Into<SourceHost>, owner: impl Into<Owner>) -> Result<Self> {
-        let source_host = source_host.into();
-        let owner = owner.into();
-
-        let auth_headers = auth_headers(&source_host, &owner)
-            .map_err(|e| GazenotError::new("initializing Abyss authentication", e))?;
-
-        Self::new_with_auth_headers(source_host, owner, auth_headers)
+        Self::into_the_abyss(source_host, owner)
     }
 
     /// Create a new client for The Abyss with no authentication
