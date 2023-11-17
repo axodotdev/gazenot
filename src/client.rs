@@ -123,7 +123,7 @@ impl Gazenot {
     ///
     /// This is the vastly inferior alias for [`Gazenot::into_the_abyss`].
     ///
-    /// See also, `[Abyss::new_unauthed][]`.
+    /// See also, [`Gazenot::new_unauthed`].
     pub fn new(source_host: impl Into<SourceHost>, owner: impl Into<Owner>) -> Result<Self> {
         let source_host = source_host.into();
         let owner = owner.into();
