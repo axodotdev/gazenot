@@ -288,7 +288,10 @@ impl Gazenot {
         let response = self
             .client
             .post(url.clone())
+            // Give file uploads a way beefier timeout
+            .timeout(std::time::Duration::from_secs(60 * 3))
             .headers(self.auth_headers.clone())
+            // FIXME: properly compute the mime-type!
             .header("content-type", "application/octet-stream")
             .body(data.contents)
             .send()
