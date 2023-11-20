@@ -1,4 +1,4 @@
-use std::{str::FromStr, sync::Arc};
+use std::{env, str::FromStr, sync::Arc};
 
 use crate::{
     error::*, AnnouncementKey, ArtifactSet, ArtifactSetId, Owner, PackageName, Release, ReleaseKey,
@@ -158,6 +158,10 @@ impl Gazenot {
         const API_SERVER: &str = "axo-abyss.fly.dev";
         const HOSTING_SERVER: &str = "artifacts.axodotdev.host";
 
+        let api_server = env::var("GAZENOT_API_SERVER").unwrap_or(API_SERVER.to_owned());
+        let hosting_server =
+            env::var("GAZENOT_HOSTING_SERVER").unwrap_or(HOSTING_SERVER.to_owned());
+
         let timeout = std::time::Duration::from_secs(10);
         let client = Client::builder()
             .timeout(timeout)
@@ -165,8 +169,8 @@ impl Gazenot {
             .map_err(|e| GazenotError::new(DESC, e))?;
 
         Ok(Self(Arc::new(GazenotInner {
-            api_server: API_SERVER.to_owned(),
-            hosting_server: HOSTING_SERVER.to_owned(),
+            api_server,
+            hosting_server,
             owner,
             source_host,
             auth_headers,
