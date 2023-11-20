@@ -11,6 +11,7 @@ use reqwest::{
     Client, Url,
 };
 use serde::{Deserialize, Serialize};
+use tokio::sync::{Semaphore, SemaphorePermit};
 
 /// A domain (as in part of a URL)
 pub type Domain = String;
@@ -36,8 +37,10 @@ pub struct GazenotInner {
     owner: Owner,
     /// Name of the project
     source_host: SourceHost,
-    /// reqwest client
-    client: Client,
+    /// reqwest client, must be accessed with the client() method
+    _client: Client,
+    /// semaphore the manages maximum number of requests
+    _semaphore: Semaphore,
 }
 
 impl std::ops::Deref for Gazenot {
@@ -222,6 +225,8 @@ impl Gazenot {
             .timeout(timeout)
             .build()
             .map_err(|e| GazenotError::new(DESC, e))?;
+        // 10 is a reasonable number of maximum concurrent connections
+        let semaphore = Semaphore::new(10);
 
         Ok(Self(Arc::new(GazenotInner {
             api_server,
@@ -229,7 +234,8 @@ impl Gazenot {
             owner,
             source_host,
             auth_headers,
-            client,
+            _client: client,
+            _semaphore: semaphore,
         })))
     }
 
@@ -268,8 +274,8 @@ impl Gazenot {
         package: PackageName,
     ) -> ResultInner<ArtifactSet> {
         // No body
-        let response = self
-            .client
+        let (_permit, client) = self.client().await;
+        let response = client
             .post(url.clone())
             .headers(self.auth_headers.clone())
             .send()
@@ -305,12 +311,8 @@ impl Gazenot {
         &self,
         files: impl IntoIterator<Item = (&ArtifactSet, Vec<Utf8PathBuf>)>,
     ) -> Result<()> {
-        // FIXME: we *should* spawn all the queries in parallel but it's very easy to spawn
-        // dozens if not hundreds of connections this way, causing the server to kill us
-        // for exceeding its connection limit. So for MVP purposes we do this in serial.
-        //
-        // Making this parallel (as all the other endpoints are) requires us to implement
-        // a maximum connection semaphore (max = 10, say) and probably a backoff/retry system.
+        // Spawn all the queries in parallel...
+        let mut queries = vec![];
         for (set, sub_files) in files {
             for file in sub_files {
                 let handle = self.clone();
@@ -326,15 +328,16 @@ impl Gazenot {
 
                 // See comment about serial connections above.
                 // Just run one query at a time to be safe.
-                let mut queries = vec![];
                 queries.push((
                     desc,
                     url.clone(),
                     tokio::spawn(async move { handle.upload_file(url, file).await }),
                 ));
-                join_all(queries).await?;
             }
         }
+
+        // Then join on them all
+        join_all(queries).await?;
 
         Ok(())
     }
@@ -350,8 +353,8 @@ impl Gazenot {
         let data = LocalAsset::load(path)?;
 
         // Send the bytes
-        let response = self
-            .client
+        let (_permit, client) = self.client().await;
+        let response = client
             .post(url.clone())
             // Give file uploads a way beefier timeout
             .timeout(std::time::Duration::from_secs(60 * 3))
@@ -420,8 +423,8 @@ impl Gazenot {
             },
         };
 
-        let response = self
-            .client
+        let (_permit, client) = self.client().await;
+        let response = client
             .post(url.clone())
             .headers(self.auth_headers.clone())
             .json(&request)
@@ -496,8 +499,8 @@ impl Gazenot {
             releases,
             body: announcement.body,
         };
-        let response = self
-            .client
+        let (_permit, client) = self.client().await;
+        let response = client
             .post(url.clone())
             .headers(self.auth_headers.clone())
             .json(&request)
@@ -538,8 +541,8 @@ impl Gazenot {
     /// Ask The Abyss about releases
     async fn list_releases(&self, url: Url, package: PackageName) -> ResultInner<ReleaseList> {
         // No body
-        let response = self
-            .client
+        let (_permit, client) = self.client().await;
+        let response = client
             .get(url.clone())
             .headers(self.auth_headers.clone())
             .send()
@@ -628,6 +631,17 @@ impl Gazenot {
             "https://{server}/{source_host}{owner}/{package}/releases"
         ))?;
         Ok(url)
+    }
+}
+
+impl GazenotInner {
+    async fn client(&self) -> (SemaphorePermit, &Client) {
+        let permit = self
+            ._semaphore
+            .acquire()
+            .await
+            .expect("Gazenot client semaphore closed!?");
+        (permit, &self._client)
     }
 }
 
