@@ -246,8 +246,12 @@ impl Gazenot {
         &self,
         files: impl IntoIterator<Item = (&ArtifactSet, Vec<Utf8PathBuf>)>,
     ) -> Result<()> {
-        // Spawn all the queries in parallel...
-        let mut queries = vec![];
+        // FIXME: we *should* spawn all the queries in parallel but it's very easy to spawn
+        // dozens if not hundreds of connections this way, causing the server to kill us
+        // for exceeding its connection limit. So for MVP purposes we do this in serial.
+        //
+        // Making this parallel (as all the other endpoints are) requires us to implement
+        // a maximum connection semaphore (max = 10, say) and probably a backoff/retry system.
         for (set, sub_files) in files {
             for file in sub_files {
                 let handle = self.clone();
@@ -260,16 +264,18 @@ impl Gazenot {
                 let url = self
                     .upload_artifact_set_url(set, filename)
                     .map_err(|e| GazenotError::new(&desc, e))?;
+
+                // See comment about serial connections above.
+                // Just run one query at a time to be safe.
+                let mut queries = vec![];
                 queries.push((
                     desc,
                     url.clone(),
                     tokio::spawn(async move { handle.upload_file(url, file).await }),
                 ));
+                join_all(queries).await?;
             }
         }
-
-        // Then join on them all
-        join_all(queries).await?;
 
         Ok(())
     }
