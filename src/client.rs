@@ -1,16 +1,18 @@
-use std::{env, str::FromStr, sync::Arc};
+use std::{env, future::Future, str::FromStr, sync::Arc};
 
 use crate::{
     error::*, AnnouncementKey, ArtifactSet, ArtifactSetId, Owner, PackageName, Release, ReleaseKey,
     ReleaseList, ReleaseTag, SourceHost, UnparsedUrl, UnparsedVersion,
 };
 use axoasset::LocalAsset;
+use backon::{ExponentialBuilder, Retryable};
 use camino::Utf8PathBuf;
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
     Client, Url,
 };
 use serde::{Deserialize, Serialize};
+use tokio::sync::{Semaphore, SemaphorePermit};
 
 /// A domain (as in part of a URL)
 pub type Domain = String;
@@ -36,8 +38,10 @@ pub struct GazenotInner {
     owner: Owner,
     /// Name of the project
     source_host: SourceHost,
-    /// reqwest client
-    client: Client,
+    /// reqwest client, must be accessed with the client() method
+    _client: Client,
+    /// semaphore the manages maximum number of requests
+    _semaphore: Semaphore,
 }
 
 impl std::ops::Deref for Gazenot {
@@ -222,6 +226,8 @@ impl Gazenot {
             .timeout(timeout)
             .build()
             .map_err(|e| GazenotError::new(DESC, e))?;
+        // 10 is a reasonable number of maximum concurrent connections
+        let semaphore = Semaphore::new(10);
 
         Ok(Self(Arc::new(GazenotInner {
             api_server,
@@ -229,7 +235,8 @@ impl Gazenot {
             owner,
             source_host,
             auth_headers,
-            client,
+            _client: client,
+            _semaphore: semaphore,
         })))
     }
 
@@ -267,13 +274,19 @@ impl Gazenot {
         url: Url,
         package: PackageName,
     ) -> ResultInner<ArtifactSet> {
-        // No body
-        let response = self
-            .client
-            .post(url.clone())
-            .headers(self.auth_headers.clone())
-            .send()
-            .await?;
+        let req = || async {
+            // No body
+            let (_permit, client) = self.client().await;
+            let res = client
+                .post(url.clone())
+                .headers(self.auth_headers.clone())
+                .send()
+                .await?;
+            ResultInner::Ok(res)
+        };
+
+        // Send the request, potentially retrying a few times
+        let response = retry_request(req).await?;
 
         // Process the response
         let ArtifactSetResponse {
@@ -305,12 +318,8 @@ impl Gazenot {
         &self,
         files: impl IntoIterator<Item = (&ArtifactSet, Vec<Utf8PathBuf>)>,
     ) -> Result<()> {
-        // FIXME: we *should* spawn all the queries in parallel but it's very easy to spawn
-        // dozens if not hundreds of connections this way, causing the server to kill us
-        // for exceeding its connection limit. So for MVP purposes we do this in serial.
-        //
-        // Making this parallel (as all the other endpoints are) requires us to implement
-        // a maximum connection semaphore (max = 10, say) and probably a backoff/retry system.
+        // Spawn all the queries in parallel...
+        let mut queries = vec![];
         for (set, sub_files) in files {
             for file in sub_files {
                 let handle = self.clone();
@@ -326,15 +335,16 @@ impl Gazenot {
 
                 // See comment about serial connections above.
                 // Just run one query at a time to be safe.
-                let mut queries = vec![];
                 queries.push((
                     desc,
                     url.clone(),
                     tokio::spawn(async move { handle.upload_file(url, file).await }),
                 ));
-                join_all(queries).await?;
             }
         }
+
+        // Then join on them all
+        join_all(queries).await?;
 
         Ok(())
     }
@@ -344,23 +354,29 @@ impl Gazenot {
     /// Not exposed as a public because you shouldn't use this directly,
     /// and we might want to rework it.
     async fn upload_file(&self, url: Url, path: Utf8PathBuf) -> ResultInner<()> {
-        // Load the bytes from disk
-        //
-        // FIXME: this should be streamed to the request as it's loaded to disk
-        let data = LocalAsset::load(path)?;
+        let req = || async {
+            // Load the bytes from disk
+            //
+            // FIXME: this should be streamed to the request as it's loaded to disk
+            let data = LocalAsset::load(&path)?;
 
-        // Send the bytes
-        let response = self
-            .client
-            .post(url.clone())
-            // Give file uploads a way beefier timeout
-            .timeout(std::time::Duration::from_secs(60 * 3))
-            .headers(self.auth_headers.clone())
-            // FIXME: properly compute the mime-type!
-            .header("content-type", "application/octet-stream")
-            .body(data.contents)
-            .send()
-            .await?;
+            // Send the bytes
+            let (_permit, client) = self.client().await;
+            let res = client
+                .post(url.clone())
+                // Give file uploads a way beefier timeout
+                .timeout(std::time::Duration::from_secs(60 * 3))
+                .headers(self.auth_headers.clone())
+                // FIXME: properly compute the mime-type!
+                .header("content-type", "application/octet-stream")
+                .body(data.contents)
+                .send()
+                .await?;
+            ResultInner::Ok(res)
+        };
+
+        // Send the request, potentially retrying a few times
+        let response = retry_request(req).await?;
 
         process_response_basic(response).await?;
 
@@ -420,13 +436,19 @@ impl Gazenot {
             },
         };
 
-        let response = self
-            .client
-            .post(url.clone())
-            .headers(self.auth_headers.clone())
-            .json(&request)
-            .send()
-            .await?;
+        let req = || async {
+            let (_permit, client) = self.client().await;
+            let res = client
+                .post(url.clone())
+                .headers(self.auth_headers.clone())
+                .json(&request)
+                .send()
+                .await?;
+            ResultInner::Ok(res)
+        };
+
+        // Send the request, potentially retrying a few times
+        let response = retry_request(req).await?;
 
         // Parse the result
         let ReleaseResponse {
@@ -496,13 +518,19 @@ impl Gazenot {
             releases,
             body: announcement.body,
         };
-        let response = self
-            .client
-            .post(url.clone())
-            .headers(self.auth_headers.clone())
-            .json(&request)
-            .send()
-            .await?;
+        let req = || async {
+            let (_permit, client) = self.client().await;
+            let res = client
+                .post(url.clone())
+                .headers(self.auth_headers.clone())
+                .json(&request)
+                .send()
+                .await?;
+            ResultInner::Ok(res)
+        };
+
+        // Send the request, potentially retrying a few times
+        let response = retry_request(req).await?;
 
         process_response_basic(response).await
     }
@@ -537,13 +565,19 @@ impl Gazenot {
 
     /// Ask The Abyss about releases
     async fn list_releases(&self, url: Url, package: PackageName) -> ResultInner<ReleaseList> {
-        // No body
-        let response = self
-            .client
-            .get(url.clone())
-            .headers(self.auth_headers.clone())
-            .send()
-            .await?;
+        let req = || async {
+            // No body
+            let (_permit, client) = self.client().await;
+            let res = client
+                .get(url.clone())
+                .headers(self.auth_headers.clone())
+                .send()
+                .await?;
+            ResultInner::Ok(res)
+        };
+
+        // Send the request, retrying a few times for server errors
+        let response = retry_request(req).await?;
 
         // Process the response
         let ListReleasesResponse {} = process_response(response).await?;
@@ -631,6 +665,17 @@ impl Gazenot {
     }
 }
 
+impl GazenotInner {
+    async fn client(&self) -> (SemaphorePermit, &Client) {
+        let permit = self
+            ._semaphore
+            .acquire()
+            .await
+            .expect("Gazenot client semaphore closed!?");
+        (permit, &self._client)
+    }
+}
+
 async fn join_all<T>(
     queries: impl IntoIterator<Item = (String, Url, tokio::task::JoinHandle<ResultInner<T>>)>,
 ) -> Result<Vec<T>> {
@@ -681,6 +726,42 @@ fn auth_headers(source: &SourceHost, owner: &Owner) -> ResultInner<HeaderMap> {
         (HeaderName::from_static("x-axo-identifier"), id),
     ]);
     Ok(auth_headers)
+}
+
+/// Take some code that builds up and performs a Request
+/// and retry it a few times if it's a server error.
+async fn retry_request<Fut, FutureFn, R>(request: R) -> ResultInner<reqwest::Response>
+where
+    Fut: Future<Output = ResultInner<reqwest::Response>>,
+    FutureFn: FnMut() -> Fut,
+    R: Retryable<ExponentialBuilder, reqwest::Response, GazenotErrorInner, Fut, FutureFn>,
+{
+    // Defaults to:
+    //
+    // * jitter: false
+    // * factor: 2
+    // * min_delay: 1s
+    // * max_delay: 60s
+    // * max_times: 3
+    //
+    // (If I understand this correctly, the actual max delay is 8s as a result of the other values,
+    // the default is there presumably in case you mess with other params and Do Something Bad).
+    let policy = ExponentialBuilder::default();
+
+    let resp = request
+        .retry(&policy)
+        .when(|e| {
+            // Only retry if the server thinks the error is its own fault (500 range)
+            let GazenotErrorInner::Reqwest(e) = e else {
+                return false;
+            };
+            let Some(status) = e.status() else {
+                return false;
+            };
+            status.is_server_error()
+        })
+        .await?;
+    Ok(resp)
 }
 
 async fn process_response<T: for<'a> Deserialize<'a>>(
