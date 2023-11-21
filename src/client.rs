@@ -1,4 +1,4 @@
-use std::{str::FromStr, sync::Arc};
+use std::{env, str::FromStr, sync::Arc};
 
 use crate::{
     error::*, AnnouncementKey, ArtifactSet, ArtifactSetId, Owner, PackageName, Release, ReleaseKey,
@@ -13,7 +13,7 @@ use reqwest::{
 use serde::{Deserialize, Serialize};
 
 /// A domain (as in part of a URL)
-type Domain = String;
+pub type Domain = String;
 
 /// A client for The Abyss
 ///
@@ -115,6 +115,18 @@ impl Gazenot {
         Self::new(source_host, owner)
     }
 
+    /// Gaze Not Into My Personal Very Comfortable Abyss
+    ///
+    /// This is the vastly superior alias for [`Gazenot::new_with_custom_servers`].
+    pub fn into_my_custom_abyss(
+        source_host: impl Into<SourceHost>,
+        owner: impl Into<Owner>,
+        api_server: impl Into<Domain>,
+        hosting_server: impl Into<Domain>,
+    ) -> Result<Self> {
+        Self::new_with_custom_servers(source_host, owner, api_server, hosting_server)
+    }
+
     /// Create a new authenticated client for The Abyss
     ///
     /// Authentication requires an Axo Releases Token, whose value
@@ -131,7 +143,37 @@ impl Gazenot {
         let auth_headers = auth_headers(&source_host, &owner)
             .map_err(|e| GazenotError::new("initializing Abyss authentication", e))?;
 
-        Self::new_with_auth_headers(source_host, owner, auth_headers)
+        Self::new_with_auth_headers(source_host, owner, auth_headers, None, None)
+    }
+
+    /// Create a new authenticated client for a specific installation of The Abyss
+    ///
+    /// This is similar to the above, but allows specifying the API and hosting
+    /// servers to connect to via parameters. This takes priority over any
+    /// servers specified via the environment and over the defaults.
+    ///
+    /// This is the vastly inferior alias for [`Gazenot::into_my_custom_abyss`].
+    ///
+    /// See also, [`Gazenot::new_unauthed`].
+    pub fn new_with_custom_servers(
+        source_host: impl Into<SourceHost>,
+        owner: impl Into<Owner>,
+        api_server: impl Into<Domain>,
+        hosting_server: impl Into<Domain>,
+    ) -> Result<Self> {
+        let source_host = source_host.into();
+        let owner = owner.into();
+
+        let auth_headers = auth_headers(&source_host, &owner)
+            .map_err(|e| GazenotError::new("initializing Abyss authentication", e))?;
+
+        Self::new_with_auth_headers(
+            source_host,
+            owner,
+            auth_headers,
+            Some(api_server.into()),
+            Some(hosting_server.into()),
+        )
     }
 
     /// Create a new client for The Abyss with no authentication
@@ -146,17 +188,34 @@ impl Gazenot {
     ) -> Result<Self> {
         let auth_headers = HeaderMap::new();
 
-        Self::new_with_auth_headers(source_host.into(), owner.into(), auth_headers)
+        Self::new_with_auth_headers(source_host.into(), owner.into(), auth_headers, None, None)
     }
 
     fn new_with_auth_headers(
         source_host: SourceHost,
         owner: Owner,
         auth_headers: HeaderMap,
+        api_server: Option<String>,
+        hosting_server: Option<String>,
     ) -> Result<Self> {
         const DESC: &str = "create http client for axodotdev hosting (abyss)";
         const API_SERVER: &str = "axo-abyss.fly.dev";
         const HOSTING_SERVER: &str = "artifacts.axodotdev.host";
+
+        // Order of preference:
+        // 1. specified via args
+        // 2. from environment
+        // 3. constants
+        let api_server = if let Some(server) = api_server {
+            server
+        } else {
+            env::var("GAZENOT_API_SERVER").unwrap_or(API_SERVER.to_owned())
+        };
+        let hosting_server = if let Some(server) = hosting_server {
+            server
+        } else {
+            env::var("GAZENOT_HOSTING_SERVER").unwrap_or(HOSTING_SERVER.to_owned())
+        };
 
         let timeout = std::time::Duration::from_secs(10);
         let client = Client::builder()
@@ -165,8 +224,8 @@ impl Gazenot {
             .map_err(|e| GazenotError::new(DESC, e))?;
 
         Ok(Self(Arc::new(GazenotInner {
-            api_server: API_SERVER.to_owned(),
-            hosting_server: HOSTING_SERVER.to_owned(),
+            api_server,
+            hosting_server,
             owner,
             source_host,
             auth_headers,
