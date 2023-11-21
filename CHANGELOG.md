@@ -1,3 +1,9 @@
+# Version 0.1.3 (2023-11-21)
+
+* There is now a maximum limit of 10 connections from gazenot at a time
+* There is now a retry/backoff system for server 500 errors (3 tries, delays: 1s, 2s)
+* The API domains that gazenot accesses can now be overridden programmatically or with env-vars
+
 # Version 0.1.2 (2023-11-20)
 
 Made bulk file upload API serial as a quick-n-dirty solution to too many connections.
