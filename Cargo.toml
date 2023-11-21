@@ -11,7 +11,7 @@ repository = "https://github.com/axodotdev/gazenot"
 
 [features]
 default = ["client_lib"]
-client_lib = ["axoasset", "url", "reqwest", "tracing", "tokio", "camino", "axoasset"]
+client_lib = ["axoasset", "url", "reqwest", "tracing", "tokio", "camino", "axoasset", "backon"]
 
 [dependencies]
 
@@ -33,4 +33,4 @@ reqwest = { version = "0.11.22", default-features = false, optional = true, feat
     "rustls-tls",
     "json",
 ]}
-backon = "0.4.1"
+backon = { version = "0.4.1", optional = true }
