@@ -203,7 +203,7 @@ impl Gazenot {
         hosting_server: Option<String>,
     ) -> Result<Self> {
         const DESC: &str = "create http client for axodotdev hosting (abyss)";
-        const API_SERVER: &str = "axo-abyss.fly.dev";
+        const API_SERVER: &str = "releases.axo.dev";
         const HOSTING_SERVER: &str = "artifacts.axodotdev.host";
 
         // Order of preference:
