@@ -13,7 +13,7 @@ use reqwest::{
 use serde::{Deserialize, Serialize};
 
 /// A domain (as in part of a URL)
-type Domain = String;
+pub type Domain = String;
 
 /// A client for The Abyss
 ///
@@ -121,8 +121,8 @@ impl Gazenot {
     pub fn into_my_custom_abyss(
         source_host: impl Into<SourceHost>,
         owner: impl Into<Owner>,
-        api_server: String,
-        hosting_server: String,
+        api_server: impl Into<Domain>,
+        hosting_server: impl Into<Domain>,
     ) -> Result<Self> {
         Self::new_with_custom_servers(source_host, owner, api_server, hosting_server)
     }
@@ -158,8 +158,8 @@ impl Gazenot {
     pub fn new_with_custom_servers(
         source_host: impl Into<SourceHost>,
         owner: impl Into<Owner>,
-        api_server: String,
-        hosting_server: String,
+        api_server: impl Into<Domain>,
+        hosting_server: impl Into<Domain>,
     ) -> Result<Self> {
         let source_host = source_host.into();
         let owner = owner.into();
@@ -171,8 +171,8 @@ impl Gazenot {
             source_host,
             owner,
             auth_headers,
-            Some(api_server),
-            Some(hosting_server),
+            Some(api_server.into()),
+            Some(hosting_server.into()),
         )
     }
 
