@@ -1,3 +1,9 @@
+# Version 0.1.4 (2023-11-22)
+
+* updated API domains to production servers
+* properly made a client_lib dependency optional
+
+
 # Version 0.1.3 (2023-11-21)
 
 * There is now a maximum limit of 10 connections from gazenot at a time
