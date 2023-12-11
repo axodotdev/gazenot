@@ -1,3 +1,8 @@
+# Version 0.2.0 (2023-12-11)
+
+* Properly implemented the functions calls to get release data for packages, for oranda
+  (and other things') usage!
+
 # Version 0.1.4 (2023-11-22)
 
 * updated API domains to production servers
