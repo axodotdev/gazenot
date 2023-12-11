@@ -145,6 +145,13 @@ pub struct AnnouncementKey {
 pub struct ReleaseList {
     /// Name of the package
     pub package_name: PackageName,
+    /// The list of releases
+    pub releases: Vec<PublicRelease>,
+}
+
+/// A release that has been announced.
+#[derive(Debug, Clone)]
+pub struct PublicRelease {
     /// Name of the release
     pub name: String,
     /// Tag name used for the release

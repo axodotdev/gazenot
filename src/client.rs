@@ -1,8 +1,9 @@
 use std::{env, future::Future, str::FromStr, sync::Arc};
 
 use crate::{
-    error::*, AnnouncementKey, ArtifactSet, ArtifactSetId, Owner, PackageName, Release,
-    ReleaseAsset, ReleaseKey, ReleaseList, ReleaseTag, SourceHost, UnparsedUrl, UnparsedVersion,
+    error::*, AnnouncementKey, ArtifactSet, ArtifactSetId, Owner, PackageName, PublicRelease,
+    Release, ReleaseAsset, ReleaseKey, ReleaseList, ReleaseTag, SourceHost, UnparsedUrl,
+    UnparsedVersion,
 };
 use axoasset::LocalAsset;
 use backon::{ExponentialBuilder, Retryable};
@@ -593,34 +594,45 @@ impl Gazenot {
         let response = retry_request(req).await?;
 
         // Process the response
-        let ListReleasesResponse {
-            tag_name,
-            name,
-            body,
-            prerelease,
-            created_at,
-            assets,
-            version,
-        } = process_response(response).await?;
-
-        let assets: Vec<ReleaseAsset> = assets
+        let releases: Vec<ListReleasesResponse> = process_response(response).await?;
+        let releases = releases
             .into_iter()
-            .map(|a| ReleaseAsset {
-                name: a.name,
-                uploaded_at: a.uploaded_at,
-                browser_download_url: a.browser_download_url,
+            .map(|release| {
+                let ListReleasesResponse {
+                    tag_name,
+                    name,
+                    body,
+                    prerelease,
+                    created_at,
+                    assets,
+                    version,
+                } = release;
+
+                let assets: Vec<ReleaseAsset> = assets
+                    .into_iter()
+                    .map(|a| ReleaseAsset {
+                        name: a.name,
+                        uploaded_at: a.uploaded_at,
+                        browser_download_url: a.browser_download_url,
+                    })
+                    .collect();
+
+                PublicRelease {
+                    version,
+                    tag_name,
+                    name,
+                    prerelease,
+                    created_at,
+                    body,
+                    assets,
+                }
             })
             .collect();
+
         // Add extra context to make the response more useful in code
         Ok(ReleaseList {
             package_name: package,
-            version,
-            tag_name,
-            name,
-            prerelease,
-            created_at,
-            body,
-            assets,
+            releases,
         })
     }
 
