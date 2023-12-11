@@ -709,7 +709,7 @@ impl Gazenot {
         let owner = &self.owner;
         let package = &package;
         let url = Url::from_str(&format!(
-            "https://{server}/{source_host}{owner}/{package}/releases"
+            "https://{server}/{source_host}/{owner}/{package}/releases"
         ))?;
         Ok(url)
     }
