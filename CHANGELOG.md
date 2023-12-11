@@ -1,7 +1,13 @@
+# Version 0.2.1 (2023-12-11)
+
+* Fix to an incorrect URL for the release data endpoint
+
+
 # Version 0.2.0 (2023-12-11)
 
 * Properly implemented the functions calls to get release data for packages, for oranda
   (and other things') usage!
+
 
 # Version 0.1.4 (2023-11-22)
 
@@ -14,6 +20,7 @@
 * There is now a maximum limit of 10 connections from gazenot at a time
 * There is now a retry/backoff system for server 500 errors (3 tries, delays: 1s, 2s)
 * The API domains that gazenot accesses can now be overridden programmatically or with env-vars
+
 
 # Version 0.1.2 (2023-11-20)
 
