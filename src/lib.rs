@@ -141,11 +141,34 @@ pub struct AnnouncementKey {
 }
 
 /// A listing of the releases for a package
-///
-/// CURRENTLY A STUB, TBD
 #[derive(Debug, Clone)]
 pub struct ReleaseList {
     /// Name of the package
-    pub package: PackageName,
-    // TBD
+    pub package_name: PackageName,
+    /// Name of the release
+    pub name: String,
+    /// Tag name used for the release
+    pub tag_name: ReleaseTag,
+    /// Version of the release
+    pub version: UnparsedVersion,
+    /// Body of the release announcement
+    pub body: String,
+    /// Whether the release is considered a prerelease
+    pub prerelease: bool,
+    /// Timestamp when the release was announced
+    /// TODO: Verify this is actually the _announcement_ timestamp
+    pub created_at: String,
+    /// List of assets associated with the release
+    pub assets: Vec<ReleaseAsset>,
+}
+
+/// A single release artifact/asset
+#[derive(Debug, Clone)]
+pub struct ReleaseAsset {
+    /// The URL that can be used to download this package
+    pub browser_download_url: String,
+    /// The filename of the asset
+    pub name: String,
+    /// The date it was uploaded and attached to the artifact set
+    pub uploaded_at: String,
 }
