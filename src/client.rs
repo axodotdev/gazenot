@@ -15,6 +15,18 @@ use reqwest::{
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Semaphore, SemaphorePermit};
 
+/// Whether we should default to production or staging
+///
+/// This is a convenience for easily telling our tools "go into staging mode" for reading/writing
+/// test data "properly".
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+enum Deployment {
+    /// use production servers
+    Production,
+    /// use staging servers
+    Staging,
+}
+
 /// A domain (as in part of a URL)
 pub type Domain = String;
 
@@ -39,6 +51,8 @@ pub struct GazenotInner {
     owner: Owner,
     /// Name of the project
     source_host: SourceHost,
+    /// Are we using staging or prod?
+    deployment: Deployment,
     /// reqwest client, must be accessed with the client() method
     _client: Client,
     /// semaphore the manages maximum number of requests
@@ -158,10 +172,11 @@ impl Gazenot {
         let source_host = source_host.into();
         let owner = owner.into();
 
-        let auth_headers = auth_headers(&source_host, &owner)
+        let deployment = deployment();
+        let auth_headers = auth_headers(&source_host, &owner, deployment)
             .map_err(|e| GazenotError::new("initializing Abyss authentication", e))?;
 
-        Self::new_with_auth_headers(source_host, owner, auth_headers, None, None)
+        Self::new_with_auth_headers(source_host, owner, deployment, auth_headers, None, None)
     }
 
     /// Create a new authenticated client for a specific installation of The Abyss
@@ -182,12 +197,14 @@ impl Gazenot {
         let source_host = source_host.into();
         let owner = owner.into();
 
-        let auth_headers = auth_headers(&source_host, &owner)
+        let deployment = deployment();
+        let auth_headers = auth_headers(&source_host, &owner, deployment)
             .map_err(|e| GazenotError::new("initializing Abyss authentication", e))?;
 
         Self::new_with_auth_headers(
             source_host,
             owner,
+            deployment,
             auth_headers,
             Some(api_server.into()),
             Some(hosting_server.into()),
@@ -204,21 +221,48 @@ impl Gazenot {
         source_host: impl Into<SourceHost>,
         owner: impl Into<Owner>,
     ) -> Result<Self> {
+        let deployment = deployment();
         let auth_headers = HeaderMap::new();
 
-        Self::new_with_auth_headers(source_host.into(), owner.into(), auth_headers, None, None)
+        Self::new_with_auth_headers(
+            source_host.into(),
+            owner.into(),
+            deployment,
+            auth_headers,
+            None,
+            None,
+        )
     }
 
     fn new_with_auth_headers(
         source_host: SourceHost,
         owner: Owner,
+        deployment: Deployment,
         auth_headers: HeaderMap,
         api_server: Option<String>,
         hosting_server: Option<String>,
     ) -> Result<Self> {
         const DESC: &str = "create http client for axodotdev hosting (abyss)";
-        const API_SERVER: &str = "releases.axo.dev";
-        const HOSTING_SERVER: &str = "artifacts.axodotdev.host";
+
+        let default_api_server;
+        let default_hosting_server;
+        let env_api_server;
+        let env_hosting_server;
+        match deployment {
+            Deployment::Production => {
+                env_api_server = "GAZENOT_API_SERVER";
+                env_hosting_server = "GAZENOT_HOSTING_SERVER";
+                default_api_server = "releases.axo.dev";
+                default_hosting_server = "artifacts.axodotdev.host";
+            }
+            Deployment::Staging => {
+                env_api_server = "GAZENOT_STAGING_API_SERVER";
+                env_hosting_server = "GAZENOT_STAGING_HOSTING_SERVER";
+                default_api_server = "https://staging-axo-abyss.fly.dev/";
+                // same hosting server, staging affects the url schema
+                default_hosting_server = "artifacts.axodotdev.host";
+            }
+        }
 
         // Order of preference:
         // 1. specified via args
@@ -227,12 +271,12 @@ impl Gazenot {
         let api_server = if let Some(server) = api_server {
             server
         } else {
-            env::var("GAZENOT_API_SERVER").unwrap_or(API_SERVER.to_owned())
+            env::var(env_api_server).unwrap_or(default_api_server.to_owned())
         };
         let hosting_server = if let Some(server) = hosting_server {
             server
         } else {
-            env::var("GAZENOT_HOSTING_SERVER").unwrap_or(HOSTING_SERVER.to_owned())
+            env::var(env_hosting_server).unwrap_or(default_hosting_server.to_owned())
         };
 
         let timeout = std::time::Duration::from_secs(10);
@@ -248,6 +292,7 @@ impl Gazenot {
             hosting_server,
             owner,
             source_host,
+            deployment,
             auth_headers,
             _client: client,
             _semaphore: semaphore,
@@ -648,15 +693,23 @@ impl Gazenot {
     }
 
     pub fn download_artifact_set_url(&self, set: &ArtifactSet, filename: &str) -> ResultInner<Url> {
-        // TODO: update this to new signature
         // GET :owner.:hosting_server/:package/:public_id/
+
+        // We don't need a seperate staging server for hosting since we already have production
+        // broken up into tenants and it's just a simple CDN. So staging is just distinguished
+        // by prefixing usernames thusly.
+        let prefix = match self.deployment {
+            Deployment::Production => "",
+            Deployment::Staging => "staging--",
+        };
+
         let base = set.set_download_url.clone().unwrap_or_else(|| {
             let server = &self.hosting_server;
             let owner = &self.owner;
             let ArtifactSet {
                 package, public_id, ..
             } = set;
-            format!("https://{owner}.{server}/{package}/{public_id}")
+            format!("https://{prefix}{owner}.{server}/{package}/{public_id}")
         });
         let url = Url::from_str(&format!("{base}/{filename}"))?;
         Ok(url)
@@ -740,31 +793,49 @@ async fn join_all<T>(
     Ok(results)
 }
 
-fn auth_headers(source: &SourceHost, owner: &Owner) -> ResultInner<HeaderMap> {
+fn deployment() -> Deployment {
+    let prod = env::var("STAGE_INTO_THE_ABYSS")
+        .unwrap_or_default()
+        .is_empty();
+    if prod {
+        Deployment::Production
+    } else {
+        Deployment::Staging
+    }
+}
+
+fn auth_headers(
+    source: &SourceHost,
+    owner: &Owner,
+    deployment: Deployment,
+) -> ResultInner<HeaderMap> {
     // extra-awkard code so you're on your toes and properly treat this like radioactive waste
     // DO NOT UNDER ANY CIRCUMSTANCES PRINT THIS VALUE.
     // DO NOT IMPLEMENT DEBUG ON Abyss OR AbyssInner!!
     let auth = {
         // Intentionally hidden so we only do this here
-        const AUTH_KEY_ENV_VAR: &str = "AXO_RELEASES_TOKEN";
+        let env_var = match deployment {
+            Deployment::Production => "AXO_RELEASES_TOKEN",
+            Deployment::Staging => "AXO_RELEASES_STAGING_TOKEN",
+        };
         // Load from env-var
-        let Ok(auth_key) = std::env::var(AUTH_KEY_ENV_VAR) else {
+        let Ok(auth_key) = std::env::var(env_var) else {
             return Err(GazenotErrorInner::AuthKey {
                 reason: "could not load env var",
-                env_var_name: AUTH_KEY_ENV_VAR,
+                env_var_name: env_var,
             });
         };
         if auth_key.is_empty() {
             return Err(GazenotErrorInner::AuthKey {
                 reason: "no value in env var",
-                env_var_name: AUTH_KEY_ENV_VAR,
+                env_var_name: env_var,
             });
         }
         // Create http header
         let Ok(auth) = HeaderValue::from_str(&format!("Bearer {auth_key}")) else {
             return Err(GazenotErrorInner::AuthKey {
                 reason: "had invalid characters for an http header",
-                env_var_name: AUTH_KEY_ENV_VAR,
+                env_var_name: env_var,
             });
         };
         auth
