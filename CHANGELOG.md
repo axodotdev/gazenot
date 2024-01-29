@@ -1,3 +1,9 @@
+# Version 0.2.2 (2023-12-11)
+
+Add a STAGE_INTO_THE_ABYSS=1 env-var to toggle the client into "staging" mode,
+where it reads and write's axo releases staging servers instead of production.
+This is for creating realistic test data.
+
 # Version 0.2.1 (2023-12-11)
 
 * Fix to an incorrect URL for the release data endpoint
