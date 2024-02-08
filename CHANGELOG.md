@@ -1,3 +1,8 @@
+# Version 0.2.3 (2024-02-08)
+
+Fix to STAGE_INTO_THE_ABYSS mode.
+
+
 # Version 0.2.2 (2023-12-11)
 
 Add a STAGE_INTO_THE_ABYSS=1 env-var to toggle the client into "staging" mode,
