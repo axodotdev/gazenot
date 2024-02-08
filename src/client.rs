@@ -258,7 +258,7 @@ impl Gazenot {
             Deployment::Staging => {
                 env_api_server = "GAZENOT_STAGING_API_SERVER";
                 env_hosting_server = "GAZENOT_STAGING_HOSTING_SERVER";
-                default_api_server = "https://staging-axo-abyss.fly.dev/";
+                default_api_server = "staging-axo-abyss.fly.dev";
                 // same hosting server, staging affects the url schema
                 default_hosting_server = "artifacts.axodotdev.host";
             }
