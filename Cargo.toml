@@ -1,7 +1,7 @@
 [package]
 name = "gazenot"
 description = "Gaze Not Into The Abyss, Lest You Become A Release Engineer"
-version = "0.2.3"
+version = "0.3.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/axodotdev/gazenot"

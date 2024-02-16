@@ -1,3 +1,7 @@
+# Version 0.3.0 (2024-02-16)
+
+Updates dependencies, including a breaking change to miette.
+
 # Version 0.2.3 (2024-02-08)
 
 Fix to STAGE_INTO_THE_ABYSS mode.
