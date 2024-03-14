@@ -65,6 +65,8 @@ pub enum GazenotErrorInner {
         env_var_name: &'static str,
     },
     #[error("attempted to access production API with mock hosting info")]
-    #[diagnostic(help("did you run 'cargo dist host create'?"))]
+    #[diagnostic(help(
+        "did you run 'cargo dist host --steps=create'? (your CI should do this for you)"
+    ))]
     IsMocked,
 }
