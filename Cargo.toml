@@ -23,7 +23,7 @@ miette = { version = "7.0.0" }
 schemars = "0.8.11"
 
 # things needed for the full client
-axoasset = { version = ">=0.9.0", features = ["json-serde"], optional = true }
+axoasset = { version = ">=0.9.0, <0.10.0", features = ["json-serde"], optional = true }
 url = { version = "2.4.1", features = ["serde"], optional = true }
 tracing = { version = "0.1.36", features = ["log"], optional = true }
 tokio = { version = "1.12.0", features = ["full"], optional = true }
