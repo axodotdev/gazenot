@@ -1,3 +1,7 @@
+# Version 0.3.1 (2024-04-16)
+
+Updates dependencies, relaxing the ranges on axoasset and reqwest. Also improves an error message for mocked request errors.
+
 # Version 0.3.0 (2024-02-16)
 
 Updates dependencies, including a breaking change to miette.
