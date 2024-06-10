@@ -5,13 +5,14 @@ use crate::{
     Release, ReleaseAsset, ReleaseKey, ReleaseList, ReleaseTag, SourceHost, UnparsedUrl,
     UnparsedVersion,
 };
-use axoasset::LocalAsset;
-use backon::{ExponentialBuilder, Retryable};
-use camino::Utf8PathBuf;
-use reqwest::{
+use axoasset::reqwest::{
+    self,
     header::{HeaderMap, HeaderName, HeaderValue},
     Client, Url,
 };
+use axoasset::LocalAsset;
+use backon::{ExponentialBuilder, Retryable};
+use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Semaphore, SemaphorePermit};
 
