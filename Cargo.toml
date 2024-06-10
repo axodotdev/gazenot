@@ -11,7 +11,7 @@ repository = "https://github.com/axodotdev/gazenot"
 
 [features]
 default = ["client_lib"]
-client_lib = ["axoasset", "url", "reqwest", "tracing", "tokio", "camino", "axoasset", "backon"]
+client_lib = ["axoasset", "url", "tracing", "tokio", "camino", "axoasset", "backon"]
 
 [dependencies]
 
@@ -23,14 +23,9 @@ miette = { version = "7.0.0" }
 schemars = "0.8.11"
 
 # things needed for the full client
-axoasset = { version = ">=0.9.0, <0.11.0", features = ["json-serde"], optional = true }
+axoasset = { version = ">=0.9.0, <0.11.0", features = ["json-serde", "remote"], optional = true }
 url = { version = "2.4.1", features = ["serde"], optional = true }
 tracing = { version = "0.1.36", features = ["log"], optional = true }
 tokio = { version = "1.12.0", features = ["full"], optional = true }
 camino = { version = "1.1.6", optional = true }
-reqwest = { version = ">= 0.11.0", default-features = false, optional = true, features = [
-    "gzip",
-    "rustls-tls",
-    "json",
-]}
 backon = { version = "0.4.1", optional = true }

@@ -1,3 +1,4 @@
+use axoasset::reqwest;
 use miette::Diagnostic;
 use thiserror::Error;
 
