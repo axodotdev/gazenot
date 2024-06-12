@@ -1,3 +1,7 @@
+# Version 0.3.2 (2024-06-12)
+
+This release changes how reqwest is used, inheriting it from a dependency rather than specifying it directly. It also updates several dependencies.
+
 # Version 0.3.1 (2024-04-16)
 
 Updates dependencies, relaxing the ranges on axoasset and reqwest. Also improves an error message for mocked request errors.
