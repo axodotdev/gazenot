@@ -141,7 +141,7 @@ pub struct AnnouncementKey {
 }
 
 /// A listing of the releases for a package
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ReleaseList {
     /// Name of the package
     pub package_name: PackageName,
@@ -150,7 +150,7 @@ pub struct ReleaseList {
 }
 
 /// A release that has been announced.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct PublicRelease {
     /// Name of the release
     pub name: String,
@@ -170,7 +170,7 @@ pub struct PublicRelease {
 }
 
 /// A single release artifact/asset
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ReleaseAsset {
     /// The URL that can be used to download this package
     pub browser_download_url: String,
