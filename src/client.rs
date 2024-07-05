@@ -418,7 +418,7 @@ impl Gazenot {
             // Load the bytes from disk
             //
             // FIXME: this should be streamed to the request as it's loaded to disk
-            let data = LocalAsset::load(&path)?;
+            let data = LocalAsset::load_bytes(&path)?;
 
             // Send the bytes
             let (_permit, client) = self.client().await;
@@ -429,7 +429,7 @@ impl Gazenot {
                 .headers(self.auth_headers.clone())
                 // FIXME: properly compute the mime-type!
                 .header("content-type", "application/octet-stream")
-                .body(data.contents)
+                .body(data)
                 .send()
                 .await?;
             ResultInner::Ok(res)
