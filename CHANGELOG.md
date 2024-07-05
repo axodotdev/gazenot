@@ -1,3 +1,9 @@
+# Version 0.3.3 (2024-07-05)
+
+This release adds the tls-native-roots feature, which enables the same
+underlying feature in reqwest, making us also support native certificate chains.
+
+
 # Version 0.3.2 (2024-06-12)
 
 This release changes how reqwest is used, inheriting it from a dependency rather than specifying it directly. It also updates several dependencies.
