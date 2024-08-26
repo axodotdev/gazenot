@@ -48,6 +48,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ce0a7701f0bdc87db4e2b4cb0b566eff073f71248b95eafc1d991f576ebe3af"
 dependencies = [
  "fastrand",
+ "tokio",
 ]
 
 [[package]]
