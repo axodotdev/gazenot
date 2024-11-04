@@ -871,7 +871,7 @@ where
     let policy = ExponentialBuilder::default();
 
     let resp = request
-        .retry(&policy)
+        .retry(policy)
         .when(|e| {
             // Only retry if the server thinks the error is its own fault (500 range)
             let GazenotErrorInner::Reqwest(e) = e else {
