@@ -25,9 +25,9 @@ checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
 name = "axoasset"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "489aa74cfacfaf4cabcb0c2bb63da396b2a5aa70937050bc9dc0233bd7c9b85c"
+checksum = "5ba1098cfaa17f0973d2b766ee07bedb3e81a29b35c8d8b26de5074e37011443"
 dependencies = [
  "camino",
  "image",
@@ -37,7 +37,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "thiserror 1.0.69",
+ "thiserror 2.0.6",
  "url",
  "walkdir",
 ]
